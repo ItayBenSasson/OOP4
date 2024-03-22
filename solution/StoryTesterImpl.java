@@ -30,7 +30,7 @@ public class StoryTesterImpl implements StoryTester {
             // On failure, we assume the reason was the class is enclosed.
             // Enclosed classes have a secret parameter - their enclosing instance.
             // Create an enclosing instance:
-            Object enclosingInstance = testClass.getEnclosingClass();
+            Object enclosingInstance = createTestInstance(testClass.getEnclosingClass());
             return testClass.getConstructor(testClass.getEnclosingClass()).newInstance(enclosingInstance);
         }
     }
@@ -181,7 +181,8 @@ public class StoryTesterImpl implements StoryTester {
 
             Object parameterObj = parseParameter(parameter);
             try {
-                method.invoke(parameterObj);
+                method.setAccessible(true);
+                method.invoke(testInstance, parameterObj);
             } catch (AssertionFailedError e) {
                 this.numFails++; // TODO: Why not just throw a story test exception here?
             }
