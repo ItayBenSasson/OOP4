@@ -1,6 +1,7 @@
 package solution;
 
 import junit.framework.AssertionFailedError;
+import org.junit.Assert;
 import org.junit.ComparisonFailure;
 import provided.*;
 
@@ -181,9 +182,12 @@ public class StoryTesterImpl implements StoryTester {
 
             Object parameterObj = parseParameter(parameter);
             try {
+                backUpInstance(testInstance);
                 method.setAccessible(true);
                 method.invoke(testInstance, parameterObj);
-            } catch (AssertionFailedError e) {
+                if (annotationName.equals("When")) restoreInstance(testInstance);
+            } catch (InvocationTargetException e) {
+                // if (e.getCause() instanceof AssertionError) { }
                 this.numFails++; // TODO: Why not just throw a story test exception here?
             }
         }
