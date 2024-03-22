@@ -168,27 +168,27 @@ public class StoryTesterImpl implements StoryTester {
         Object testInstance = createTestInstance(testClass);
 
         for(String sentence : story.split("\n")) {
-            boolean methodFound = false;
+            // Parsing
             String[] words = sentence.split(" ", 2);
-
             String annotationName = words[0];
             Class<? extends Annotation> annotationClass = GetAnnotationClass(annotationName);
-
             String sentenceSub = words[1].substring(0, words[1].lastIndexOf(' ')); // Sentence without the parameter and annotation
             String parameter = sentence.substring(sentence.lastIndexOf(' ') + 1);
 
+            // Setting up the method call
+            Object parameterObj = parseParameter(parameter);
             Method method = findMethodByAnnotation(testClass, annotationClass, sentenceSub);
             if (method == null) throw newWordNotFoundException(annotationName);
+            // (Must be accessible for us - let's make it accessible).
+            method.setAccessible(true);
 
-            Object parameterObj = parseParameter(parameter);
+            // Call it!
             try {
                 backUpInstance(testInstance);
-                method.setAccessible(true);
                 method.invoke(testInstance, parameterObj);
                 if (annotationName.equals("When")) restoreInstance(testInstance);
             } catch (InvocationTargetException e) {
-                // if (e.getCause() instanceof AssertionError) { }
-                this.numFails++; // TODO: Why not just throw a story test exception here?
+                this.numFails++;
             }
         }
 
