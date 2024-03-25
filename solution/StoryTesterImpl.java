@@ -66,14 +66,19 @@ public class StoryTesterImpl implements StoryTester {
             if(fieldObject instanceof Cloneable){
                 // field.set(res, fieldObject.clone());
                 // This doesn't work: why? because .clone() is protected! Let's use reflection:
-                fieldObjectClone = Object.class.getDeclaredMethod("clone").invoke(fieldObject);
+                Method clone = Object.class.getDeclaredMethod("clone");
+                clone.setAccessible(true);
+                fieldObjectClone = clone.invoke(fieldObject);
             }
             else if(copyConstructorExists(fieldClass)){
-                fieldObjectClone = fieldClass.getDeclaredConstructor(fieldClass).newInstance(fieldObject);
+                Constructor<?> cons = fieldClass.getDeclaredConstructor(fieldClass);
+                cons.setAccessible(true);
+                fieldObjectClone = cons.newInstance(fieldObject);
             }
             else{
                 fieldObjectClone = fieldObject;
             }
+            field.setAccessible(true);
             field.set(res, fieldObjectClone);
         }
         this.objectBackup = res;
@@ -84,6 +89,7 @@ public class StoryTesterImpl implements StoryTester {
     private void restoreInstance(Object obj) throws Exception{
         Field[] classFields = obj.getClass().getDeclaredFields();
         for(Field field : classFields) {
+            field.setAccessible(true);
             Object value = field.get(this.objectBackup);
             field.set(obj, value);
         }
