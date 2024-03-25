@@ -233,8 +233,8 @@ public class StoryTesterImpl implements StoryTester {
                     then_failed = true;
                     story_failed = true;
                     this.firstFailedSentence = sentence;
-                    this.expected = assertionFailedError.getExpected();
-                    this.result = assertionFailedError.getActual();
+                    this.expected = ((ComparisonFailure)(assertionFailedError.getCause())).getExpected();
+                    this.result = ((ComparisonFailure)(assertionFailedError.getCause())).getActual();
                     this.numFails++;
                 } else {
                     // If it's not an assertion failure, we need to rethrow it.
@@ -249,10 +249,9 @@ public class StoryTesterImpl implements StoryTester {
         }
 
         if (story_failed) {
-            throw new StoryTestExceptionImpl(this.firstFailedSentence, this.numFails, this.expected, this.result);
+            throw new StoryTestExceptionImpl(this.firstFailedSentence, this.expected, this.result, this.numFails);
         }
-
-        // TODO: Throw StoryTestExceptionImpl if the story failed.
+        // TODO: Throw StoryTestException if the story failed.
     }
 
 
