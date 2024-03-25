@@ -47,7 +47,7 @@ public class StoryTesterImpl implements StoryTester {
     }
 
     /** Assigns into objectBackup a backup of obj.
-    /** See homework's pdf for more details on backing up and restoring **/
+     /** See homework's pdf for more details on backing up and restoring **/
     private void backUpInstance(Object obj) throws Exception {
         Object res = createTestInstance(obj.getClass());
         Field[] fieldsArr = obj.getClass().getDeclaredFields();
@@ -85,7 +85,7 @@ public class StoryTesterImpl implements StoryTester {
     }
 
     /** Assigns into obj's fields the values in objectBackup fields.
-    /** See homework's pdf for more details on backing up and restoring **/
+     /** See homework's pdf for more details on backing up and restoring **/
     private void restoreInstance(Object obj) throws Exception{
         Field[] classFields = obj.getClass().getDeclaredFields();
         for(Field field : classFields) {
@@ -118,7 +118,7 @@ public class StoryTesterImpl implements StoryTester {
         } catch (Exception e) {
             throw new RuntimeException(
                     "Annotation class " + annotationClass + " did not look correct! It must have a " +
-                    "single invokable method that takes no parameters besides `this` and returns a String."
+                            "single invokable method that takes no parameters besides `this` and returns a String."
             );
         }
     }
@@ -169,7 +169,7 @@ public class StoryTesterImpl implements StoryTester {
     @Override
     public void testOnInheritanceTree(String story, Class<?> testClass) throws Exception {
         if((story == null) || testClass == null) throw new IllegalArgumentException();
-
+        boolean then_failed = false, story_failed = false, when_case = false;
         this.numFails = 0;
         Object testInstance = createTestInstance(testClass);
 
@@ -189,13 +189,67 @@ public class StoryTesterImpl implements StoryTester {
             method.setAccessible(true);
 
             // Call it!
+            Class<?> our_test = null;
             try {
                 backUpInstance(testInstance);
                 method.invoke(testInstance, parameterObj);
-                if (annotationName.equals("When")) restoreInstance(testInstance);
+                if (annotationName.equals("When") && !when_case) {
+                    if (then_failed) {
+                        restoreInstance(testInstance);
+                        break;
+                    }
+                    backUpInstance(testInstance);
+                    when_case = true;
+
+                }
+                if (annotationName.equals("Then") && when_case) {
+                    when_case = false;
+                }
+                our_test = testClass;
+                while (our_test != null) {
+                    try {
+                        Method then = findMethodByAnnotation(our_test, Then.class, sentenceSub);
+                        if (then != null) {
+                            backUpInstance(testInstance);
+                            then.invoke(testInstance, parameterObj);
+                            break;
+                        }
+                    } catch (Exception e) {
+                    }
+                    our_test = our_test.getSuperclass();
+                }
             } catch (InvocationTargetException e) {
-                this.numFails++;
+                // If the method threw an exception, we need to handle it.
+                Throwable cause = e.getCause();
+                if (cause instanceof AssertionFailedError) {
+                    // If it's an assertion failure, we need to handle it.
+                    AssertionFailedError assertionFailedError = (AssertionFailedError) cause;
+                    if (then_failed) {
+                        // If we already failed, we need to restore the object and break.
+                        restoreInstance(testInstance);
+                        break;
+                    }
+                    // Otherwise, we need to save the failure information.
+                    then_failed = true;
+                    story_failed = true;
+                    this.firstFailedSentence = sentence;
+                    this.expected = assertionFailedError.getExpected();
+                    this.result = assertionFailedError.getActual();
+                    this.numFails++;
+                } else {
+                    // If it's not an assertion failure, we need to rethrow it.
+                    throw e;
+                }
+                //we haven't found a method in the inheritance tree
+                if (our_test == Object.class) {
+                    throw newWordNotFoundException(annotationName);
+                }
             }
+
+        }
+
+        if (story_failed) {
+            throw new StoryTestExceptionImpl(this.firstFailedSentence, this.numFails, this.expected, this.result);
         }
 
         // TODO: Throw StoryTestExceptionImpl if the story failed.
@@ -210,17 +264,17 @@ public class StoryTesterImpl implements StoryTester {
         }
         catch (GivenNotFoundException e){
             boolean no_story = true;
-        for (Class<?> innerClass : testClass.getDeclaredClasses()){
-        try {
-            testOnInheritanceTree(story, innerClass);
+            for (Class<?> innerClass : testClass.getDeclaredClasses()){
+                try {
+                    testOnInheritanceTree(story, innerClass);
+                }
+                catch (GivenNotFoundException e1){
+                    continue;
+                }
+                no_story = false;
+                break;
+            }
+            if (no_story) throw new GivenNotFoundException();
         }
-        catch (GivenNotFoundException e1){
-            continue;
-        }
-        no_story = false;
-        break;
-        }
-        if (no_story) throw new GivenNotFoundException();
-        }
-        }
+    }
 }
