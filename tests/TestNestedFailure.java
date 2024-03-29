@@ -61,7 +61,6 @@ public class TestNestedFailure
                 + "Then the number is 110\n" //STAY BACK TRUE
                 + "When the number increase by 10\n"
                 + "When the number increase by 10\n"
-                + "Then the number is 160\n" //TRUE
                 + "Then the number is 160\n"; //TRUE
 
         try
