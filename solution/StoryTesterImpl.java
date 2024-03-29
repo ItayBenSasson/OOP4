@@ -1,7 +1,5 @@
 package solution;
 
-import junit.framework.AssertionFailedError;
-import org.junit.Assert;
 import org.junit.ComparisonFailure;
 import provided.*;
 
@@ -165,93 +163,73 @@ public class StoryTesterImpl implements StoryTester {
             return parameter;
         }
     }
-
+    private Method match(Class<?> testClass, Class<? extends Annotation> annot_class, String sentenceSub) throws WordNotFoundException {
+        for (Method meth : testClass.getDeclaredMethods()) {
+            if (meth.isAnnotationPresent(annot_class)) {
+                //check if the method has the right sentence
+                try {
+                    // extracting the value from the annotation's object
+                    String value = (String) annot_class.getMethod("value").invoke(meth.getAnnotation(annot_class));
+                    if (value.substring(0, value.lastIndexOf(" ")).equals(sentenceSub)) {
+                        return meth;
+                    }
+                }
+                catch(Exception ignored) {}
+            }
+        }
+        Class<?> superc = testClass.getSuperclass();
+        if (superc != null) {
+            return match(superc, annot_class, sentenceSub);
+        } else {
+           //check which exception to throw
+            throw newWordNotFoundException(annot_class.getSimpleName());
+        }
+    }
     @Override
     public void testOnInheritanceTree(String story, Class<?> testClass) throws Exception {
-        if((story == null) || testClass == null) throw new IllegalArgumentException();
-        boolean then_failed = false, story_failed = false, when_case = false;
-        this.numFails = 0;
+        if ((story == null) || testClass == null) throw new IllegalArgumentException();
+        //initialize storyTestException values as local variables
+        int numFailsLocal = 0;
+        String firstFailedSentenceLocal = null;
+        String expectedLocal = null;
+        String resultLocal = null;
         Object testInstance = createTestInstance(testClass);
-
-        for(String sentence : story.split("\n")) {
-            // Parsing
+        boolean in_when = false;
+        for (String sentence : story.split("\n")) {
             String[] words = sentence.split(" ", 2);
             String annotationName = words[0];
             Class<? extends Annotation> annotationClass = GetAnnotationClass(annotationName);
             String sentenceSub = words[1].substring(0, words[1].lastIndexOf(' ')); // Sentence without the parameter and annotation
             String parameter = sentence.substring(sentence.lastIndexOf(' ') + 1);
-
-            // Setting up the method call
-            Object parameterObj = parseParameter(parameter);
-            Method method = findMethodByAnnotation(testClass, annotationClass, sentenceSub);
-            if (method == null) throw newWordNotFoundException(annotationName);
-            // (Must be accessible for us - let's make it accessible).
-            method.setAccessible(true);
-
-            // Call it!
-            Class<?> our_test = null;
-            try {
+            Method method = match(testClass, annotationClass, sentenceSub);
+            if (annotationName.equals("When") && !in_when) {
                 backUpInstance(testInstance);
-                method.invoke(testInstance, parameterObj);
-                if (annotationName.equals("When") && !when_case) {
-                    if (then_failed) {
-                        restoreInstance(testInstance);
-                        break;
-                    }
-                    backUpInstance(testInstance);
-                    when_case = true;
-
-                }
-                if (annotationName.equals("Then") && when_case) {
-                    when_case = false;
-                }
-                our_test = testClass;
-                while (our_test != null) {
-                    try {
-                        Method then = findMethodByAnnotation(our_test, Then.class, sentenceSub);
-                        if (then != null) {
-                            backUpInstance(testInstance);
-                            then.invoke(testInstance, parameterObj);
-                            break;
-                        }
-                    } catch (Exception e) {
-                    }
-                    our_test = our_test.getSuperclass();
+                in_when = true;
+            }
+            if (annotationName.equals("Then")) {
+                in_when = false;
+            }
+            method.setAccessible(true);
+            try {
+                // check if a method takes parameter as string or integer
+                if (method.getParameterTypes()[0].equals(String.class)) {
+                    method.invoke(testInstance, parameter);
+                } else {
+                    method.invoke(testInstance, Integer.parseInt(parameter));
                 }
             } catch (InvocationTargetException e) {
-                // If the method threw an exception, we need to handle it.
-                Throwable cause = e.getCause();
-                if (cause instanceof AssertionFailedError) {
-                    // If it's an assertion failure, we need to handle it.
-                    AssertionFailedError assertionFailedError = (AssertionFailedError) cause;
-                    if (then_failed) {
-                        // If we already failed, we need to restore the object and break.
-                        restoreInstance(testInstance);
-                        break;
-                    }
-                    // Otherwise, we need to save the failure information.
-                    then_failed = true;
-                    story_failed = true;
-                    this.firstFailedSentence = sentence;
-                    this.expected = ((ComparisonFailure)(assertionFailedError.getCause())).getExpected();
-                    this.result = ((ComparisonFailure)(assertionFailedError.getCause())).getActual();
-                    this.numFails++;
-                } else {
-                    // If it's not an assertion failure, we need to rethrow it.
-                    throw e;
-                }
-                //we haven't found a method in the inheritance tree
-                if (our_test == Object.class) {
-                    throw newWordNotFoundException(annotationName);
+                numFailsLocal++;
+                if (numFailsLocal == 1) {
+                    restoreInstance(testInstance);
+                    firstFailedSentenceLocal = sentence;
+                    expectedLocal = ((ComparisonFailure) e.getCause()).getExpected();
+                    resultLocal = ((ComparisonFailure) e.getCause()).getActual();
                 }
             }
-
         }
-
-        if (story_failed) {
-            throw new StoryTestExceptionImpl(this.firstFailedSentence, this.expected, this.result, this.numFails);
+        if (numFailsLocal > 0) {
+            throw new StoryTestExceptionImpl(firstFailedSentenceLocal, expectedLocal, resultLocal, numFailsLocal);
         }
-        // TODO: Throw StoryTestException if the story failed.
     }
 
 
