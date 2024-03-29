@@ -254,7 +254,7 @@ public class StoryTesterImpl implements StoryTester {
             boolean no_story = true;
             for (Class<?> innerClass : testClass.getDeclaredClasses()){
                 try {
-                    testOnInheritanceTree(story, innerClass);
+                    testOnNestedClasses(story, innerClass);
                 }
                 catch (GivenNotFoundException e1){
                     continue;
