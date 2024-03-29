@@ -44,6 +44,16 @@ public class StoryTesterImpl implements StoryTester {
         }
     }
 
+    private Method getCloneMethod(Class<?> c) {
+        if (c == Object.class) return null;
+
+        try {
+            return c.getDeclaredMethod("clone");
+        } catch (NoSuchMethodException e) {
+            return getCloneMethod(c.getSuperclass());
+        }
+    }
+
     /** Assigns into objectBackup a backup of obj.
      /** See homework's pdf for more details on backing up and restoring **/
     private void backUpInstance(Object obj) throws Exception {
@@ -64,7 +74,8 @@ public class StoryTesterImpl implements StoryTester {
             if(fieldObject instanceof Cloneable){
                 // field.set(res, fieldObject.clone());
                 // This doesn't work: why? because .clone() is protected! Let's use reflection:
-                Method clone = fieldClass.getMethod("clone");
+                Method clone = getCloneMethod(fieldClass);
+                if (clone == null) throw new RuntimeException("This cloneable class is not cloneable!");
                 clone.setAccessible(true);
                 fieldObjectClone = clone.invoke(fieldObject);
             }
