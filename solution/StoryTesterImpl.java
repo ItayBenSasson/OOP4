@@ -4,10 +4,7 @@ import org.junit.ComparisonFailure;
 import provided.*;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.reflect.*;
 import java.security.InvalidParameterException;
 
 public class StoryTesterImpl implements StoryTester {
@@ -22,15 +19,18 @@ public class StoryTesterImpl implements StoryTester {
     /** Creates and returns a new instance of testClass **/
     private static Object createTestInstance(Class<?> testClass) throws Exception {
         // This method uses only the default constructor.
-        try {
-            // Try constructing a new instance using the default constructor of testClass
-            return testClass.getConstructor().newInstance();
-        } catch (Exception e) {
-            // On failure, we assume the reason was the class is enclosed.
-            // Enclosed classes have a secret parameter - their enclosing instance.
+        if (!testClass.isMemberClass() || Modifier.isStatic(testClass.getModifiers())) {
+            Constructor<?> ctor = testClass.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return ctor.newInstance();
+        } else {
+            // Enclosed non-static classes have a secret parameter - their enclosing instance.
             // Create an enclosing instance:
-            Object enclosingInstance = createTestInstance(testClass.getEnclosingClass());
-            return testClass.getConstructor(testClass.getEnclosingClass()).newInstance(enclosingInstance);
+            Class<?> enclosing = testClass.getEnclosingClass();
+            Object enclosingInstance = createTestInstance(enclosing);
+            Constructor<?> ctor = testClass.getDeclaredConstructor(enclosing);
+            ctor.setAccessible(true);
+            return ctor.newInstance(enclosingInstance);
         }
     }
 
@@ -64,7 +64,7 @@ public class StoryTesterImpl implements StoryTester {
             if(fieldObject instanceof Cloneable){
                 // field.set(res, fieldObject.clone());
                 // This doesn't work: why? because .clone() is protected! Let's use reflection:
-                Method clone = Object.class.getDeclaredMethod("clone");
+                Method clone = fieldClass.getMethod("clone");
                 clone.setAccessible(true);
                 fieldObjectClone = clone.invoke(fieldObject);
             }
